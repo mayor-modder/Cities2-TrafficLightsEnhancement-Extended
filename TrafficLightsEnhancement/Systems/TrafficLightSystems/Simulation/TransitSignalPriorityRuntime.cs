@@ -5,6 +5,7 @@ using Game.Prefabs;
 using Game.Vehicles;
 using TrafficLightsEnhancement.Logic.Tsp;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using NetSubLane = Game.Net.SubLane;
 
@@ -34,6 +35,7 @@ public static class TransitSignalPriorityRuntime
         public TransitSignalPriorityTrackProbeResult TrackApproachLaneProbe;
         public TransitSignalPriorityTrackProbeResult TrackUpstreamLaneProbe;
         public TrackLaneDebugInfo TrackLaneDebugInfo;
+        public BusApproachSample BusSample;
     }
 
     private struct ConnectedEdgeFallbackDiagnostics
@@ -332,7 +334,7 @@ public static class TransitSignalPriorityRuntime
         return (sample.PublicTransportState & PublicTransportFlags.DummyTraffic) == 0;
     }
 
-    public static bool TryResolveActiveLocalRequest(
+    public static unsafe bool TryResolveActiveLocalRequest(
         PatchedTrafficLightSystem.UpdateTrafficLightsJob job,
         Entity junctionEntity,
         DynamicBuffer<NetSubLane> subLanes,
@@ -342,13 +344,15 @@ public static class TransitSignalPriorityRuntime
         out Components.TransitSignalPrioritySettings settings,
         out TransitSignalPriorityRuntimeDebugInfo debugInfo,
         out TransitSignalPriorityBusApproachDebugInfo reusableBusApproachDebugInfo,
-        out bool hasReusableBusApproachDebugInfo)
+        out bool hasReusableBusApproachDebugInfo,
+        out NativeList<TransitSignalPriorityBusProgress> busProgress)
     {
         request = default;
         settings = default;
         debugInfo = default;
         reusableBusApproachDebugInfo = default;
         hasReusableBusApproachDebugInfo = false;
+        busProgress = default;
 
         if (!job.m_ExtraTypeHandle.m_TransitSignalPrioritySettingsLookup.TryGetComponent(junctionEntity, out settings) || !settings.m_Enabled)
         {
@@ -374,13 +378,19 @@ public static class TransitSignalPriorityRuntime
 
         TransitSignalPriorityRequest freshRequest = default;
         FreshRequestDebugInfo freshDebugInfo = default;
+        if (settings.m_AllowPublicCarRequests)
+        {
+            busProgress = new NativeList<TransitSignalPriorityBusProgress>(Allocator.Temp);
+        }
         bool hasFreshRequest = TryBuildFreshRequest(
             job,
+            junctionEntity,
             subLanes,
             trafficLights,
             settings,
             effectiveRequestHorizonTicks,
             collectReusableBusApproachDebugInfo,
+            busProgress,
             out freshRequest,
             out freshDebugInfo,
             out reusableBusApproachDebugInfo,
@@ -391,20 +401,20 @@ public static class TransitSignalPriorityRuntime
             && priorRequest.m_TargetSignalGroup > 0
             && priorRequest.m_Strength > 0f;
 
-        TspSignalRequest? freshSignalRequest = hasFreshRequest ? ToSignalRequest(freshRequest) : null;
-        TspSignalRequest? existingRequest = hasExistingRequest ? ToSignalRequest(priorRequest) : null;
-
-        if (!TspPreemptionPolicy.TryRefreshOrLatchRequest(
-                freshSignalRequest,
-                existingRequest,
+        // Use the same identity-aware bridge covered by native-free batch tests. Dropping
+        // only a fresh request would let its previous latch continue extending green.
+        if (!BusProgressRuntime.TryRefreshOrLatchRequest(
+                hasFreshRequest ? freshRequest : (TransitSignalPriorityRequest?)null,
+                hasExistingRequest ? priorRequest : (TransitSignalPriorityRequest?)null,
+                busProgress.IsCreated ? busProgress.GetUnsafePtr() : null,
+                busProgress.IsCreated ? busProgress.Length : 0,
                 effectiveRequestHorizonTicks,
                 trafficLights.m_CurrentSignalGroup,
-                out var activeRequest))
+                out request,
+                out hasExistingRequest))
         {
             return false;
         }
-
-        request = FromSignalRequest(activeRequest);
         debugInfo = new TransitSignalPriorityRuntimeDebugInfo
         {
             m_RequestKind = hasFreshRequest ? freshDebugInfo.RequestKind : TransitSignalPriorityRequestKind.LatchedExisting,
@@ -512,11 +522,13 @@ public static class TransitSignalPriorityRuntime
 
     private static bool TryBuildFreshRequest(
         PatchedTrafficLightSystem.UpdateTrafficLightsJob job,
+        Entity junctionEntity,
         DynamicBuffer<NetSubLane> subLanes,
         TrafficLights trafficLights,
         Components.TransitSignalPrioritySettings settings,
         ushort effectiveRequestHorizonTicks,
         bool collectReusableBusApproachDebugInfo,
+        NativeList<TransitSignalPriorityBusProgress> busProgress,
         out TransitSignalPriorityRequest request,
         out FreshRequestDebugInfo debugInfo,
         out TransitSignalPriorityBusApproachDebugInfo reusableBusApproachDebugInfo,
@@ -539,6 +551,9 @@ public static class TransitSignalPriorityRuntime
         TransitSignalPriorityBusProbeResult bestBusProbe = TransitSignalPriorityBusProbeResult.NoBusSamples;
         byte bestBusTargetSignalGroup = 0;
         bool hasBestBusSample = false;
+        var busCandidates = logicSettings.m_AllowPublicCarRequests
+            ? new NativeList<BusRequestCandidate>(Allocator.Temp)
+            : default;
 
         foreach (var subLane in subLanes)
         {
@@ -582,7 +597,7 @@ public static class TransitSignalPriorityRuntime
                 earlyRequest = detectedEarlyRequest;
             }
 
-            if (TryBuildBusApproachRequestForLane(
+            bool hasBusRequest = TryBuildBusApproachRequestForLane(
                     job,
                     subLaneEntity,
                     approachLaneEntity,
@@ -590,14 +605,22 @@ public static class TransitSignalPriorityRuntime
                     out var detectedBusRequest,
                     out var detectedBusSample,
                     out var detectedBusProbe,
-                    out _))
+                    out _);
+            if (detectedBusProbe != TransitSignalPriorityBusProbeResult.None
+                && detectedBusProbe != TransitSignalPriorityBusProbeResult.NoBusSamples)
             {
-                earlyRequest = SelectPreferredRequestAndRole(
-                    earlyRequest,
-                    detectedLaneRole,
-                    detectedBusRequest,
-                    TransitSignalPriorityApproachLaneRole.ApproachLane,
-                    out detectedLaneRole);
+                byte busTarget = GetTargetSignalGroup(laneSignal.m_GroupMask, trafficLights.m_CurrentSignalGroup);
+                if (busTarget != 0)
+                {
+                    busCandidates.Add(new BusRequestCandidate
+                    {
+                        IsEligibleRequest = hasBusRequest,
+                        Request = detectedBusRequest,
+                        Sample = detectedBusSample,
+                        LaneSignal = laneSignal,
+                        TargetSignalGroup = busTarget,
+                    });
+                }
             }
 
             if (shouldCollectReusableBusDebugInfo
@@ -686,6 +709,13 @@ public static class TransitSignalPriorityRuntime
             }
         }
 
+        if (busCandidates.IsCreated)
+        {
+            ResolveBusProgressAndCandidates(job, junctionEntity, trafficLights, busCandidates,
+                busProgress, ref scanState, ref earlyCandidate);
+            busCandidates.Dispose();
+        }
+
         if (shouldCollectReusableBusDebugInfo)
         {
             reusableBusApproachDebugInfo = CompleteBusApproachDebugInfo(
@@ -696,6 +726,19 @@ public static class TransitSignalPriorityRuntime
                 bestBusTargetSignalGroup,
                 logicSettings);
             hasReusableBusApproachDebugInfo = true;
+            for (int i = 0; i < busProgress.Length; i++)
+            {
+                var progress = busProgress[i];
+                if (progress.m_VehicleEntity == bestBusSample.VehicleEntity
+                    && progress.m_LaneEntity == bestBusSample.LaneEntity)
+                {
+                    reusableBusApproachDebugInfo.m_BusNoProgressTicks = progress.m_State.GreenTicksWithoutProgress;
+                    reusableBusApproachDebugInfo.m_BusNoProgressSuppressed = progress.m_State.IsSuppressed;
+                    if (progress.m_State.IsSuppressed)
+                        reusableBusApproachDebugInfo.m_BusDecision = TransitSignalPriorityBusDecision.SuppressedNoProgress;
+                    break;
+                }
+            }
         }
 
         TspRequest? selectedRequest = EarlyApproachDetection.PreferEarlyRequest(
@@ -728,6 +771,8 @@ public static class TransitSignalPriorityRuntime
             trafficLights.m_CurrentSignalGroup,
             selectedCandidate.Value.TargetSignalGroup,
             selectedCandidate.Value.LaneSignal);
+        request.m_BusVehicleEntity = selectedCandidate.Value.BusSample.VehicleEntity;
+        request.m_BusLaneEntity = selectedCandidate.Value.BusSample.LaneEntity;
 
         debugInfo = new FreshRequestDebugInfo
         {
@@ -745,6 +790,51 @@ public static class TransitSignalPriorityRuntime
             TrackLaneDebugInfo = selectedCandidate.Value.TrackLaneDebugInfo,
         };
         return true;
+    }
+
+    private static unsafe void ResolveBusProgressAndCandidates(
+        PatchedTrafficLightSystem.UpdateTrafficLightsJob job,
+        Entity junctionEntity,
+        TrafficLights trafficLights,
+        NativeList<BusRequestCandidate> candidates,
+        NativeList<TransitSignalPriorityBusProgress> progressStates,
+        ref TransitApproachScanState scanState,
+        ref TransitApproachCandidate? earlyCandidate)
+    {
+        bool hasPrevious = job.m_ExtraTypeHandle.m_TransitSignalPriorityBusProgress
+            .TryGetBuffer(junctionEntity, out var previousStates);
+
+        progressStates.ResizeUninitialized(candidates.Length);
+        var previousPointer = hasPrevious
+            ? (TransitSignalPriorityBusProgress*)previousStates.AsNativeArray().GetUnsafeReadOnlyPtr()
+            : null;
+        int stateCount = BusProgressRuntime.ObserveAndFilterCandidates(
+            candidates.GetUnsafePtr(), candidates.Length,
+            previousPointer, hasPrevious ? previousStates.Length : 0,
+            progressStates.GetUnsafePtr(), trafficLights);
+        progressStates.ResizeUninitialized(stateCount);
+
+        // Filter before ranking so a stalled bus cannot hide another eligible bus or tram.
+        for (int i = 0; i < candidates.Length; i++)
+        {
+            var bus = candidates[i];
+            if (!bus.IsEligibleRequest)
+                continue;
+
+            scanState = new TransitApproachScanState(
+                SelectPreferredRequest(scanState.EarlyRequest, bus.Request), scanState.PetitionerRequest);
+            if (ShouldReplaceCandidate(bus.Request, earlyCandidate))
+            {
+                earlyCandidate = new TransitApproachCandidate
+                {
+                    Request = bus.Request,
+                    LaneSignal = bus.LaneSignal,
+                    TargetSignalGroup = bus.TargetSignalGroup,
+                    ApproachLaneRole = TransitSignalPriorityApproachLaneRole.ApproachLane,
+                    BusSample = bus.Sample,
+                };
+            }
+        }
     }
 
     private static Entity ResolveApproachLane(
@@ -1480,19 +1570,6 @@ public static class TransitSignalPriorityRuntime
             request.m_ExpiryTimer,
             request.m_ExtendCurrentPhase,
             request.m_OnDedicatedLane);
-    }
-
-    private static TransitSignalPriorityRequest FromSignalRequest(TspSignalRequest request)
-    {
-        return new TransitSignalPriorityRequest
-        {
-            m_TargetSignalGroup = (byte)request.TargetSignalGroup,
-            m_SourceType = (byte)request.Source,
-            m_Strength = request.Strength,
-            m_ExpiryTimer = request.ExpiryTimer,
-            m_ExtendCurrentPhase = request.ExtendCurrentPhase,
-            m_OnDedicatedLane = request.OnDedicatedLane,
-        };
     }
 
     public static TransitSignalPriorityRequest SelectPreferredRequest(

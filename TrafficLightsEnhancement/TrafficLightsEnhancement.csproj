@@ -8,8 +8,8 @@
         <AssemblyName>C2VM.TrafficLightsEnhancement</AssemblyName>
         <RootNamespace>C2VM.TrafficLightsEnhancement</RootNamespace>
         <TleDeployFolder>TrafficLightsEnhancementExtended</TleDeployFolder>
-        <Version>1.0.8.0</Version>
-        <InformationalVersion>1.0.8.0</InformationalVersion>
+        <Version>1.0.9.0</Version>
+        <InformationalVersion>1.0.9.0</InformationalVersion>
         <!--The file where mod information which is required for publishing mod on PDX mods are stored-->
         <PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
     </PropertyGroup>

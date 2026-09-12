@@ -41,9 +41,10 @@ preserve and extend:
   their group at normal transition points. Trams still outrank buses.
 - Bus diagnostics can identify mixed and bus-only approaches, including current
   and change-lane samples, and show a "Bus priority mode" row ("Aggressive (bus
-  lane)" or "Soft") for the active request. Bus priority has been playtested
-  enough to be considered release-ready; stop-relation / no-progress
-  refinement, lane-change semantics, and queue heuristics remain future work.
+  lane)" or "Soft") for the active request. Earlier bus-priority behavior has
+  gameplay evidence; the new no-progress suppression still needs a fresh
+  gameplay pass. Stop relation, lane-change semantics, and queue heuristics
+  remain refinement areas.
 - Maintainer docs now cover TSP architecture, diagnostics, dynamic mode,
   save-format compatibility, localization workflow, and serialization/migration
   audit notes.
@@ -56,9 +57,9 @@ These are the next bounded choices to resolve before larger feature expansion:
 
 - Keep collecting bus-priority examples from real saves, especially edge cases
   around mixed lanes, lane changes, queues, and stop behavior.
-- Refine bus stop-relation classification (no-progress / stuck-bus handling)
-  and lane-change request semantics as follow-up to the bus-lane aggressive
-  priority already shipped.
+- Validate bus no-progress suppression against a blocked bus, a real red-light
+  queue, resumed movement, and competing bus/tram requests. Refine stop-relation
+  classification and lane-change request semantics separately.
 - Extract custom phase selection into pure logic only when a behavior change or
   larger refactor needs it; the current extraction audit does not require an
   immediate rewrite.
@@ -84,8 +85,13 @@ now includes aggressive priority for buses on marked bus lanes:
   bus's group. Tram requests still outrank bus requests.
 - **Buses in mixed lanes remain soft**: they may hold an already-serving green
   or select their group at normal transition points only.
-- Remaining future work: stop-relation / no-progress (stuck-bus) refinement,
-  lane-change semantics, and mixed-lane aggressiveness improvements.
+- A per-bus no-progress guard suppresses requests after ten serving-green
+  observation ticks without meaningful forward lane progress. Red-light waiting
+  is uncounted; progress, lane replacement, or absence rearms the bus. Other
+  buses and trams remain eligible. The state is transient and the initial
+  threshold still needs gameplay validation.
+- Remaining future work: stop-relation classification, lane-change semantics,
+  and mixed-lane aggressiveness improvements.
 
 ## Longer-Term Direction
 

@@ -573,7 +573,8 @@ public partial class PatchedTrafficLightSystem : GameSystemBase
                     out var tspSettings,
                     out var runtimeDebugInfo,
                     out reusableBusApproachDebugInfo,
-                    out hasReusableBusApproachDebugInfo))
+                    out hasReusableBusApproachDebugInfo,
+                    out var busProgress))
                 {
                     hasTspRequest = true;
                     activeTspRequest = tspRequest;
@@ -597,6 +598,23 @@ public partial class PatchedTrafficLightSystem : GameSystemBase
                         m_CommandBuffer.RemoveComponent<TransitSignalPriorityRequest>(unfilteredChunkIndex, currentEntity);
                     }
                 }
+
+                // Progress outlives a suppressed request. Only currently observed eligible
+                // buses are retained; source disable/grouping/absence clears this transient buffer.
+                bool hadBusProgress = m_ExtraTypeHandle.m_TransitSignalPriorityBusProgress.HasBuffer(currentEntity);
+                if (busProgress.IsCreated && busProgress.Length > 0)
+                {
+                    var storedProgress = hadBusProgress
+                        ? m_CommandBuffer.SetBuffer<TransitSignalPriorityBusProgress>(unfilteredChunkIndex, currentEntity)
+                        : m_CommandBuffer.AddBuffer<TransitSignalPriorityBusProgress>(unfilteredChunkIndex, currentEntity);
+                    storedProgress.CopyFrom(busProgress.AsArray());
+                }
+                else if (hadBusProgress)
+                {
+                    m_CommandBuffer.RemoveComponent<TransitSignalPriorityBusProgress>(unfilteredChunkIndex, currentEntity);
+                }
+                if (busProgress.IsCreated)
+                    busProgress.Dispose();
 
                 if (hasActiveTspDebugInfo)
                 {

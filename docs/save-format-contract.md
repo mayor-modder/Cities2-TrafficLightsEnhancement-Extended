@@ -139,6 +139,14 @@ treated as save data:
   `CarLaneFlags.PublicOnly` and is never written to the save payload.
 - `TransitSignalPriorityRuntimeDebugInfo`, selected-intersection probe and
   candidate diagnostics.
+- `TransitSignalPriorityBusProgress` is a transient junction buffer, not a
+  serialized component. Bus identities, lane identities, curve anchors, and
+  suppression state are rebuilt at runtime. The bus identity fields on
+  `TransitSignalPriorityRequest` are transient as well.
+  `TransitSignalPriorityBusApproachDebugInfo.m_BusNoProgressTicks` and
+  `m_BusNoProgressSuppressed` expose that transient state for diagnostics only.
+  No-progress suppression adds no saved fields, payload version change, or
+  migration; saved TSP settings remain unchanged.
 - `TransitSignalPriorityDecisionTrace`, final TSP decision diagnostics. Includes
   `m_OnDedicatedLane` for the "Bus priority mode" diagnostic row; also transient.
 - The aggressive-bus-lane feature (dedicated-lane buses receiving tram-style

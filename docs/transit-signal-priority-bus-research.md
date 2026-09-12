@@ -6,7 +6,8 @@ Priority (TSP) toward transit signal priority for buses.
 ## Current State
 
 Transit Signal Priority for buses now exists as a separate off-by-default
-player control with a release-ready soft MVP runtime path.
+player control. Earlier soft-priority behavior has gameplay evidence; the new
+no-progress suppression still needs a fresh gameplay pass.
 
 - `TspSource.PublicCar` is the internal source used for bus priority.
 - `m_AllowPublicCarRequests` exists in settings and serialization.
@@ -114,19 +115,19 @@ that classifier exists, not behavior the current runtime can already observe.
   stop after the signal; helping the bus cross the junction can still be useful.
 - `Arriving` with unknown stop relation suppresses conservatively until
   diagnostics can classify the stop.
-- `RequireStop` alone does not suppress a moving bus on a dedicated bus-only
-  approach. Live diagnostics showed this flag on buses at a junction that is
+- `RequireStop` alone with unknown stop relation does not suppress a bus on a
+  dedicated bus-only approach or a moving bus in a mixed lane. Live diagnostics
+  showed this flag on buses at a junction that is
   not near any stop, so treating it as a near-side-stop signal blocked the
   easiest useful bus-priority case.
-- `RequireStop` with unknown stop relation still suppresses mixed-lane buses
-  and stopped bus-only samples until diagnostics can classify the stop.
+- `RequireStop` alone with unknown stop relation still suppresses stopped
+  mixed-lane samples until diagnostics can classify the stop.
 - A queued bus with no stop flags is not stop-suppressed by this policy. Runtime
   detection may still require movement/position thresholds before creating a
   request, but queueing is not the same as boarding.
 
-Runtime implementation should continue refining stop relation, especially for
-the no-progress / stuck-bus case on bus-lane approaches (where aggressive
-preemption is now active):
+Runtime implementation should continue refining stop relation separately from
+the no-progress guard:
 
 - **Near-side stop:** suppress while `Arriving`, `RequireStop`, or `Boarding`.
 - **Far-side stop:** allow approach priority unless the bus is actually
@@ -134,10 +135,38 @@ preemption is now active):
 - **Stopped behind queue:** do not suppress solely because the bus is stopped;
   use distance/curve thresholds and request expiry to decide whether it is close
   enough to benefit.
-- **Unknown stop relation:** allow moving `RequireStop` buses only on dedicated
-  bus-only approaches; suppress `Arriving`, mixed-lane `RequireStop`, and
-  stopped `RequireStop` samples, then report the unknown relation in
-  diagnostics.
+- **Unknown stop relation:** allow `RequireStop`-only buses on dedicated
+  bus-only approaches or while moving; suppress `Arriving` and stopped
+  mixed-lane `RequireStop` samples, then report the unknown relation in diagnostics.
+
+### No-progress suppression
+
+The no-progress guard addresses repeated priority requests from a bus that is
+not benefiting from its serving green. It tracks forward lane progress per bus,
+accumulating serving-green observation deltas only. After ten ticks without
+meaningful forward progress, the bus cannot keep refreshing a request or keep
+its existing request latched. Real queues waiting at red do not accumulate
+no-progress ticks. Forward progress, lane replacement, or absence rearms the
+bus; other eligible buses and trams remain eligible throughout.
+
+The initial ten-tick threshold matches the default request horizon as a bounded,
+testable starting point. It is not a ten-second timeout or a validated tuning
+result. All observation and suppression state is transient. Fresh gameplay
+evidence must cover a blocked bus while green is served, a red-light queue,
+movement resuming, lane replacement, and another eligible bus or tram.
+
+Use a copied save and record the installed assembly's informational commit plus
+the game version. With diagnostics enabled on the test junction, retain the
+`busApproach` trace alongside these observations:
+
+| Case | Expected result |
+| --- | --- |
+| Same bus remains blocked through an unambiguous green | `noProgressTicks` reaches 10, `noProgressSuppressed` becomes true, and that bus stops extending or preempting. Ordinary phase timing still applies. |
+| Bus waits at red or its shared approach also has a red/yielding movement | No no-progress time accumulates. |
+| Bus briefly pauses, then advances | The counter resets after meaningful cumulative lane progress. |
+| Suppressed bus remains stationary through red or a boarding/ambiguous-lane interval | Suppression persists while the same bus and lane remain observed. |
+| Bus advances, changes lane, or leaves the observed approach | Its old observation no longer blocks a later eligible request. |
+| Another eligible bus or tram approaches | The blocked bus does not exclude that request. |
 
 ## Diagnostics
 
@@ -154,6 +183,8 @@ The selected junction diagnostics can report:
   connected approach fallback
 - bus-only versus mixed lane structure via `CarLaneFlags.PublicOnly`
 - lane-change progress, speed, public-transport state, and vehicle lane flags
+- accumulated no-progress ticks and `Suppressed: no progress`; the JSONL
+  `busApproach` object includes `noProgressTicks` and `noProgressSuppressed`
 - **"Bus priority mode"**: "Aggressive (bus lane)" when the active request is on
   a marked (PublicOnly) bus lane; "Soft" when the bus is in a mixed lane
 
@@ -212,9 +243,9 @@ The bus priority implementation as shipped:
 - No save-format change, no migration, no new UI toggle beyond the existing bus
   TSP toggle.
 
-Remaining open work: stop-relation / no-progress (stuck-bus) refinement for
-bus-lane approaches, and further mixed-lane aggressiveness improvements once
-stop and lane-change classification matures.
+Remaining open work: fresh gameplay validation and tuning of no-progress
+suppression, stop-relation refinement, and further mixed-lane aggressiveness
+improvements once stop and lane-change classification matures.
 
 ## Naming Decision
 
@@ -244,8 +275,10 @@ translation workflow handle new strings after the English UI is stable.
    phases, and combined bus/tram priority. (Done for release readiness.)
 6. Add aggressive preemption for buses on marked bus lanes via `OnDedicatedLane`.
    (Done.)
-7. Refine stop-aware suppression (no-progress / stuck-bus), lane-change
-   handling, queue heuristics, and grouped-intersection semantics as follow-up.
+7. Add per-bus serving-green no-progress suppression. (Implemented; fresh
+   gameplay validation pending.)
+8. Refine stop classification, lane-change handling, queue heuristics, and
+   grouped-intersection semantics as follow-up.
 
 ## Follow-Up Work
 
@@ -254,6 +287,8 @@ Suggested follow-up issues:
 - Refine bus request production around stop relation, lane changes, and queue
   distance.
 - Refine stop-aware bus suppression rules with real-save examples.
+- Validate and tune the initial no-progress threshold with recorded serving-green
+  observations and resumed movement; preserve red-light queue eligibility.
 - Improve lane-change and queue heuristics with real-save examples.
 - Design explicit group-wide TSP semantics before allowing TSP to run on
   traffic-group members.

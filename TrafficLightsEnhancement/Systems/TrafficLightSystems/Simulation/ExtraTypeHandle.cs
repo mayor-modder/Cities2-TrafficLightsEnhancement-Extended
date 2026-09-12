@@ -113,6 +113,9 @@ public struct ExtraTypeHandle
     public ComponentLookup<TransitSignalPriorityRequest> m_TransitSignalPriorityRequest;
 
     [ReadOnly]
+    public BufferLookup<TransitSignalPriorityBusProgress> m_TransitSignalPriorityBusProgress;
+
+    [ReadOnly]
     public ComponentLookup<TransitSignalPriorityRuntimeDebugInfo> m_TransitSignalPriorityRuntimeDebugInfo;
 
     [ReadOnly]
@@ -169,6 +172,7 @@ public struct ExtraTypeHandle
         m_CustomTrafficLightsLookup = state.GetComponentLookup<CustomTrafficLights>(isReadOnly: true);
         m_TransitSignalPrioritySettingsLookup = state.GetComponentLookup<TransitSignalPrioritySettings>(isReadOnly: true);
         m_TransitSignalPriorityRequest = state.GetComponentLookup<TransitSignalPriorityRequest>(isReadOnly: true);
+        m_TransitSignalPriorityBusProgress = state.GetBufferLookup<TransitSignalPriorityBusProgress>(isReadOnly: true);
         m_TransitSignalPriorityRuntimeDebugInfo = state.GetComponentLookup<TransitSignalPriorityRuntimeDebugInfo>(isReadOnly: true);
         m_TransitSignalPriorityBusApproachDebugInfo = state.GetComponentLookup<TransitSignalPriorityBusApproachDebugInfo>(isReadOnly: true);
         m_TransitSignalPriorityDecisionTrace = state.GetComponentLookup<TransitSignalPriorityDecisionTrace>(isReadOnly: true);
@@ -212,6 +216,7 @@ public struct ExtraTypeHandle
         m_CustomTrafficLightsLookup.Update(ref state);
         m_TransitSignalPrioritySettingsLookup.Update(ref state);
         m_TransitSignalPriorityRequest.Update(ref state);
+        m_TransitSignalPriorityBusProgress.Update(ref state);
         m_TransitSignalPriorityRuntimeDebugInfo.Update(ref state);
         m_TransitSignalPriorityBusApproachDebugInfo.Update(ref state);
         m_TransitSignalPriorityDecisionTrace.Update(ref state);

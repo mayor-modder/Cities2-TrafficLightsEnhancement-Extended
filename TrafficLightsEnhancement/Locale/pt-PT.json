@@ -1,4 +1,6 @@
 {
+    "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecisionSuppressedNoProgress]": "Suppressed: no progress",
+    "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusNoProgressTicks]": "Bus no-progress ticks",
     "Options.SECTION[C2VM.TrafficLightsEnhancement.C2VM.TrafficLightsEnhancement.Mod]": "Traffic Lights Enhancement",
     "Options.INPUT_MAP[C2VM.TrafficLightsEnhancement.C2VM.TrafficLightsEnhancement.Mod]": "Traffic Lights Enhancement",
     "UI.LABEL[C2VM.TrafficLightsEnhancement.Vanilla]": "Vanilla",

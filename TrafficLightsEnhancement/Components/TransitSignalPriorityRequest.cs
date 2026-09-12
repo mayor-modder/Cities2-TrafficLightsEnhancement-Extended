@@ -10,4 +10,6 @@ public struct TransitSignalPriorityRequest : IComponentData
     public uint m_ExpiryTimer;
     public bool m_ExtendCurrentPhase;
     public bool m_OnDedicatedLane;
+    public Entity m_BusVehicleEntity;
+    public Entity m_BusLaneEntity;
 }

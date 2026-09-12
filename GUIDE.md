@@ -147,6 +147,13 @@ TSP is meant to reduce avoidable transit delay. It does not guarantee that every
 
 Trams take precedence over buses. Buses detected on dedicated bus lanes can cut a conflicting phase short, just like trams. Buses in mixed lanes instead wait for a normal phase change to hold or bring up their green, because stop relation and lane-change uncertainty make it harder to safely cut other phases short there.
 
+A bus that makes no meaningful forward progress while its green is served stops
+requesting priority after ten observation ticks. Waiting at a red light does not
+count toward this limit. Priority becomes available again when the bus moves
+forward, changes to a replacement lane, or leaves the observed approach. Other
+eligible buses and trams can still request priority. This initial threshold needs
+fresh gameplay validation; it is not a ten-second wall-clock timer.
+
 TSP also respects pedestrian protection. If an exclusive pedestrian phase is active or due, the mod may delay or ignore a transit request so pedestrians are not starved.
 
 ## Traffic groups and TSP
@@ -213,6 +220,7 @@ When the file reaches 5 MB, the mod rotates it in the same folder with a timesta
 | --- | --- |
 | Bus probe | How the bus detector matched the sampled bus to the intersection. |
 | Bus decision | The bus detector outcome. This explains whether a bus request was emitted or why it was suppressed. |
+| Bus no-progress ticks | Accumulated observation ticks without meaningful forward lane progress while the bus's green is served. Waiting at red does not add ticks. |
 | Bus target group | The lane group matched to the sampled bus. |
 | Bus hits | Number of bus samples contributing to the selected match. |
 | Bus priority mode | Whether the active bus request is using aggressive or soft priority. "Aggressive (bus lane)" means the bus is on a marked bus-only lane and a conflicting phase can be cut short. "Soft" means the bus is in a mixed lane and can only hold a matching green or select at normal transition points. |
@@ -223,6 +231,7 @@ When the file reaches 5 MB, the mod rotates it in the same folder with a timesta
 | No eligible bus sample | No current bus sample met the detector and eligibility rules. |
 | Bus priority disabled | Bus TSP is disabled at this intersection. |
 | Suppressed: boarding | The bus appears to be stopped and boarding passengers. |
+| Suppressed: no progress | The bus has reached the serving-green no-progress limit. Its requests remain suppressed until progress, lane replacement, or absence resets its observation. |
 | Suppressed: near-side stop | Reserved for stop-aware detection. If shown, the bus is expected to stop before the signal, so holding the light would not help. |
 | Suppressed: stop relation unknown | The stop relationship could not be determined safely. |
 | Suppressed: lane change ambiguous | The bus appears to be changing lanes, so the target group may be unreliable. |
