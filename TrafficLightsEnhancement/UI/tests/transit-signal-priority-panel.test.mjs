@@ -44,7 +44,7 @@ test("main panel data exposes transit signal priority tram source state", async 
   assert.match(general, /diagnostics\?:\s*\{/);
   assert.match(general, /summary\?:\s*\{\s*label:\s*string,\s*value:\s*string\s*\}/);
   assert.match(general, /events\?:\s*Array<\{\s*sequence:\s*number,\s*title:\s*string,\s*detail:\s*string\s*\}>/);
-  assert.match(general, /rows:\s*Array<\{\s*label:\s*string,\s*value:\s*string\s*\}>/);
+  assert.match(general, /rows:\s*Array<\{\s*label:\s*string,\s*value:\s*string,\s*valueLabel\?:\s*string\s*\}>/);
 });
 
 test("main panel data exposes transit signal priority bus source state", async () => {
@@ -1364,7 +1364,7 @@ test("backend exposes bus approach index details", async () => {
 test("runtime can build public-car requests from bus approach samples", async () => {
   const runtime = await repoSource("Systems/TrafficLightSystems/Simulation/TransitSignalPriorityRuntime.cs");
   const helperStart = runtime.indexOf("public static bool TryBuildBusApproachRequestFromSample");
-  const helperEnd = runtime.indexOf("public static bool TryResolveActiveLocalRequest", helperStart);
+  const helperEnd = runtime.indexOf("TryResolveActiveLocalRequest(", helperStart);
   const helperSource = runtime.slice(helperStart, helperEnd);
   const requestStart = runtime.indexOf("private static bool TryBuildBusApproachRequestForLane");
   const requestEnd = runtime.indexOf("private static bool TryBuildPetitionerRequestForLane", requestStart);
@@ -1404,6 +1404,21 @@ test("bus diagnostics include request and suppression decisions", async () => {
   assert.doesNotMatch(uiBindings, /SuppressedAggressivePreemption/);
   assert.ok(locale["UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecision]"]);
   assert.ok(locale["UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecisionSuppressedNearSideStop]"]);
+});
+
+test("bus no-progress diagnostics expose the measured interval and localized suppression reason", async () => {
+  const uiBindings = await repoSource("Systems/UI/UISystem.UIBIndings.cs");
+  const panel = await source("src/mods/components/main-panel/content.tsx");
+  const locale = JSON.parse(await repoSource("Locale.json"));
+
+  assert.match(uiBindings, /SuppressedNoProgress => "Suppressed: no progress"/);
+  assert.match(uiBindings, /valueLabel = busApproachDebug\.m_BusDecision == TransitSignalPriorityBusDecision\.SuppressedNoProgress/);
+  assert.match(uiBindings, /label = "TSPDiagnosticsBusNoProgressTicks", value = busApproachDebug\.m_BusNoProgressTicks/);
+  assert.match(uiBindings, /noProgressTicks = busApproachDebug\.m_BusNoProgressTicks/);
+  assert.match(uiBindings, /noProgressSuppressed = busApproachDebug\.m_BusNoProgressSuppressed/);
+  assert.match(panel, /row\.valueLabel\s*\?\s*translate\(`UI\.LABEL\[C2VM\.TrafficLightsEnhancement\.\$\{row\.valueLabel\}\]`\)\s*\?\?\s*row\.value\s*:\s*row\.value/);
+  assert.equal(locale["UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecisionSuppressedNoProgress]"], "Suppressed: no progress");
+  assert.equal(locale["UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusNoProgressTicks]"], "Bus no-progress ticks");
 });
 
 test("bus priority builds bus approach index without requiring diagnostics", async () => {

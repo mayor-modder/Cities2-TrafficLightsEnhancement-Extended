@@ -164,6 +164,8 @@
     "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusScannedSignalLanes]": "Bus scanned signal lanes",
     "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusProbe]": "Bus probe",
     "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecision]": "Bus decision",
+    "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecisionSuppressedNoProgress]": "Suppressed: no progress",
+    "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusNoProgressTicks]": "Bus no-progress ticks",
     "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecisionSuppressedNearSideStop]": "Suppressed: near-side stop",
     "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusTargetGroup]": "Bus target group",
     "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusHitCount]": "Bus hits",

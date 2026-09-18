@@ -22,6 +22,7 @@ public enum TransitSignalPriorityBusDecision : byte
     SuppressedUnknownStopRelation = 5,
     SuppressedAmbiguousLaneChange = 7,
     SuppressedNearSideStop = 8,
+    SuppressedNoProgress = 9,
 }
 
 public struct TransitSignalPriorityBusApproachDebugInfo : IComponentData
@@ -43,4 +44,6 @@ public struct TransitSignalPriorityBusApproachDebugInfo : IComponentData
     public byte m_BusNavigationLaneCount;
     public PublicTransportFlags m_BusPublicTransportState;
     public CarLaneFlags m_BusVehicleLaneFlags;
+    public ushort m_BusNoProgressTicks;
+    public bool m_BusNoProgressSuppressed;
 }

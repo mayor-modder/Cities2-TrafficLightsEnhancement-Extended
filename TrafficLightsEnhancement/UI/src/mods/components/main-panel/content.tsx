@@ -246,7 +246,7 @@ export default function Content(props: { mainData?: MainPanelMainData | null, em
                                     {transitSignalPriorityDiagnostics.rows.map((row) => (
                                         <Row key={row.label} hoverEffect={false}>
                                             <div className={styles.contentLabel}>
-                                                {translate(`UI.LABEL[C2VM.TrafficLightsEnhancement.${row.label}]`) ?? row.label}: {row.value}
+                                                {translate(`UI.LABEL[C2VM.TrafficLightsEnhancement.${row.label}]`) ?? row.label}: {row.valueLabel ? translate(`UI.LABEL[C2VM.TrafficLightsEnhancement.${row.valueLabel}]`) ?? row.value : row.value}
                                             </div>
                                         </Row>
                                     ))}

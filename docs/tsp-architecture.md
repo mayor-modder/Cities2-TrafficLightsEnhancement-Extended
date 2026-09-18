@@ -90,6 +90,26 @@ Fresh request detection:
 - Bus approach candidates are built by `TryBuildBusApproachRequestForLane(...)` from indexed bus samples on the signaled lane, resolved approach lane, or connected approach lane.
 - Source selection prefers tram/track requests over bus/public-car requests.
 
+Bus no-progress suppression tracks each bus and its observed lane independently
+of diagnostic visibility. Ten accumulated serving-green observation deltas
+without meaningful forward lane progress suppress that bus's fresh requests and
+prevent its previous request from continuing to hold priority. Time at red does
+not accumulate. Forward progress, lane replacement, or absence resets the
+observation; suppression does not exclude other eligible buses or trams.
+The junction's `TransitSignalPriorityBusProgress` buffer persists independently
+of the request component. Observed boarding or lane-changing buses retain their
+blocked history even while ordinary request eligibility is false. Multiple
+signaled lanes matching the same bus and approach are observed once per update;
+every matched movement must have an unambiguous ongoing `Go` signal to count.
+Red or yielding alternatives on a shared approach do not consume grace.
+The initial threshold is `10`, matching the default request horizon as a
+testable starting point, not a measured real-world timeout. This behavior still
+needs fresh gameplay validation. Observation state is transient and is not saved.
+
+Selected bus diagnostics expose `Suppressed: no progress` and accumulated ticks.
+The JSONL `busApproach` object adds `noProgressTicks` and
+`noProgressSuppressed`, including them in diagnostic change detection.
+
 The tram approach index is intentionally narrow:
 
 - It scans vehicles with `PublicTransport`, `TrainNavigation`, and `TrainCurrentLane`.

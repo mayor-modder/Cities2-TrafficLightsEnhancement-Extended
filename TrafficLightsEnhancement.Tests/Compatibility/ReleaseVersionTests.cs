@@ -6,7 +6,7 @@ namespace TrafficLightsEnhancement.Tests.Compatibility;
 
 public class ReleaseVersionTests
 {
-    private const string ExpectedSemanticVersion = "1.0.8";
+    private const string ExpectedSemanticVersion = "1.0.9";
     private const string ExpectedDisplayName = "Traffic Lights Enhancement";
     private const string ExpectedDeployFolder = "TrafficLightsEnhancementExtended";
 

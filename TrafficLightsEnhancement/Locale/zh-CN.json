@@ -1,4 +1,6 @@
 {
+    "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusDecisionSuppressedNoProgress]": "Suppressed: no progress",
+    "UI.LABEL[C2VM.TrafficLightsEnhancement.TSPDiagnosticsBusNoProgressTicks]": "Bus no-progress ticks",
     "Options.SECTION[C2VM.TrafficLightsEnhancement.C2VM.TrafficLightsEnhancement.Mod]": "Traffic Lights Enhancement",
     "Options.TAB[C2VM.TrafficLightsEnhancement.C2VM.TrafficLightsEnhancement.Mod.TabGeneral]": "常规",
     "Options.TAB[C2VM.TrafficLightsEnhancement.C2VM.TrafficLightsEnhancement.Mod.TabKeyBindings]": "快捷键",
