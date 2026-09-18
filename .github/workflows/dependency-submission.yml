@@ -17,12 +17,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
@@ -30,4 +30,4 @@ jobs:
         run: dotnet restore Cities2-TrafficLightsEnhancement.sln
 
       - name: Submit dependency snapshot
-        uses: advanced-security/component-detection-dependency-submission-action@v0.1.1
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.6
